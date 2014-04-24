@@ -13,14 +13,10 @@ function recv(text) {
 }
 
 function main() {
-    var ws = new WebSocket("ws://192.168.31.202:8081/");
+    var ws = new WebSocket("ws://172.16.30.122:8081/");
     ws.onmessage = function(event) {
         console.log(event);
-        var reader = new FileReader();
-        reader.addEventListener("loadend", function() {
-            recv(reader.result);
-        });
-        reader.readAsText(event.data);
+        recv(event.data);
     }
 }
 
