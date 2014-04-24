@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>WebSocket + msgpack Test</title>
+<script src="msgpack.js"></script>
+<script src="http://code.jquery.com/jquery-2.1.0.min.js"></script>
+<script>
+function recv(text) {
+    console.log(text);
+    data = JSON.parse(text);
+    $("#recv").text(data.count);
+}
+
+function main() {
+    var ws = new WebSocket("ws://192.168.31.202:8081/");
+    ws.onmessage = function(event) {
+        console.log(event);
+        var reader = new FileReader();
+        reader.addEventListener("loadend", function() {
+            recv(reader.result);
+        });
+        reader.readAsText(event.data);
+    }
+}
+
+$(document).ready(main);
+</script>
+</head>
+<body>
+Send: <div id="send"></div><br>
+Recv: <div id="recv"></div><br>
+</body>
+</html>
