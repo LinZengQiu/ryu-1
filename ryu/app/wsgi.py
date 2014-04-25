@@ -20,6 +20,7 @@ from ryu import cfg
 import webob.dec
 
 from ryu.lib import hub
+from ryu.contrib._eventlet import websocket
 from routes import Mapper
 from routes.util import URLGenerator
 
@@ -34,7 +35,7 @@ HEX_PATTERN = r'0x[0-9a-z]+'
 DIGIT_PATTERN = r'[1-9][0-9]*'
 
 
-def route(name, path, methods=None, requirements=None):
+def route(name, path, methods=None, requirements=None, websocket_support=False):
     def _route(controller_method):
         controller_method.routing_info = {
             'name': name,

@@ -4,8 +4,8 @@ from webob import Response
 
 from ryu.app.wsgi import route, ControllerBase, WSGIApplication
 from ryu.base import app_manager
-from ryu.tests.unit.sample import websocket_master as websocket
 from ryu.lib import hub
+from ryu.contrib._eventlet import websocket
 
 
 class HogeController(ControllerBase):
@@ -18,6 +18,7 @@ class HogeController(ControllerBase):
         body = json.dumps({'hoge': self._counter.next()})
         return Response(content_type='application/json', body=body)
 
+    @websocket.WebSocketWSGI
     def _ws_handler(self, ws):
         for i in self._counter:
             data = {
@@ -28,8 +29,7 @@ class HogeController(ControllerBase):
 
     @route('hoge', '/hoge/ws')
     def websocket(self, req, **kwargs):
-        ws_wsgi = websocket.WebSocketWSGI(self._ws_handler)
-        return ws_wsgi(req.environ, req.start_response)
+        return self._ws_handler(req.environ, req.start_response)
 
 
 class HogeApp(app_manager.RyuApp):
