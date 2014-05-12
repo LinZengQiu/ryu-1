@@ -20,6 +20,7 @@ from ryu import cfg
 import webob.dec
 
 from ryu.lib import hub
+from ryu.contrib._eventlet import websocket
 from routes import Mapper
 from routes.util import URLGenerator
 
@@ -34,7 +35,7 @@ HEX_PATTERN = r'0x[0-9a-z]+'
 DIGIT_PATTERN = r'[1-9][0-9]*'
 
 
-def route(name, path, methods=None, requirements=None):
+def route(name, path, methods=None, requirements=None, websocket_support=False):
     def _route(controller_method):
         controller_method.routing_info = {
             'name': name,
@@ -68,6 +69,12 @@ class ControllerBase(object):
         return getattr(self, action)(req, **kwargs)
 
 
+class wsgify_hack(webob.dec.wsgify):
+    def __call__(self, environ, start_response):
+        self.kwargs['start_response'] = start_response
+        return super(wsgify_hack, self).__call__(environ, start_response)
+
+
 class WSGIApplication(object):
     def __init__(self, **config):
         self.config = config
@@ -92,13 +99,14 @@ class WSGIApplication(object):
         match = self.mapper.match(req.path_info)
         return match
 
-    @webob.dec.wsgify
-    def __call__(self, req):
+    @wsgify_hack
+    def __call__(self, req, start_response):
         match = self._match(req)
 
         if not match:
             return webob.exc.HTTPNotFound()
 
+        req.start_response = start_response
         req.urlvars = match
         link = URLGenerator(self.mapper, req.environ)
 
