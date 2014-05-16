@@ -28,7 +28,8 @@ import json
 from webob import Response
 
 from ryu.app import simple_switch_13
-from ryu.app.wsgi import route, ControllerBase, WSGIApplication
+from ryu.app.wsgi import route, rpc_public
+from ryu.app.wsgi import ControllerBase, WSGIApplication, WebSocketRPCServer
 from ryu.controller import ofp_event
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
@@ -63,6 +64,10 @@ class SimpleSwitchWebSocket13(simple_switch_13.SimpleSwitch13):
         pkt = packet.Packet(ev.msg.data)
         self.ws_send_queue.put(str(pkt))
 
+    @rpc_public
+    def get_arp_table(self):
+        return self.mac_to_port
+
 
 class SimpleSwitchWebSocketController(ControllerBase):
     def __init__(self, req, link, data, **config):
@@ -73,6 +78,8 @@ class SimpleSwitchWebSocketController(ControllerBase):
     def _websocket_handler(self, ws):
         simple_switch = self.simple_switch_app
         simple_switch.logger.debug('WebSocket connected: %s', ws)
+        rpc_server = WebSocketRPCServer(ws, simple_switch)
+        hub.spawn(rpc_server.serve_forever)
         while True:
             data = simple_switch.ws_send_queue.get()
             ws.send(unicode(json.dumps(data)))
