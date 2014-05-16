@@ -22,6 +22,11 @@ import webob.dec
 from ryu.lib import hub
 from routes import Mapper
 from routes.util import URLGenerator
+from tinyrpc.server import RPCServer
+from tinyrpc.dispatch import RPCDispatcher
+from tinyrpc.dispatch import public as rpc_public
+from tinyrpc.protocols.jsonrpc import JSONRPCProtocol
+from tinyrpc.transports import ServerTransport
 
 
 CONF = cfg.CONF
@@ -70,6 +75,33 @@ class ControllerBase(object):
     def websocket_handshake(self, req, handler):
         ws_wsgi = hub.WebSocketWSGI(handler)
         return ws_wsgi(req.environ, req.start_response)
+
+
+class WebSocketServerTransport(ServerTransport):
+    def __init__(self, ws):
+        self.ws = ws
+
+    def receive_message(self):
+        message = self.ws.wait()
+        context = None
+        return (context, message)
+
+    def send_reply(self, context, reply):
+        self.ws.send(unicode(reply))
+
+
+class WebSocketRPCServer(RPCServer):
+    def __init__(self, ws, rpc_callback):
+        dispatcher = RPCDispatcher()
+        dispatcher.register_instance(rpc_callback)
+        super(WebSocketRPCServer, self).__init__(
+            WebSocketServerTransport(ws),
+            JSONRPCProtocol(),
+            dispatcher,
+        )
+
+    def _spawn(self, func, *args, **kwargs):
+        hub.spawn(func, *args, **kwargs)
 
 
 class wsgify_hack(webob.dec.wsgify):
