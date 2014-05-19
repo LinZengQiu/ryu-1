@@ -32,11 +32,11 @@ Get arp table:
 """
 
 import json
-from webob import Response
 
+from webob import Response
 from ryu.app import simple_switch_13
-from ryu.app.wsgi import route, rpc_public
-from ryu.app.wsgi import ControllerBase, WSGIApplication, WebSocketRPCServer
+from ryu.app.wsgi import route, websocket, ControllerBase, WSGIApplication
+from ryu.app.wsgi import rpc_public, WebSocketRPCServer
 from ryu.controller import ofp_event
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
@@ -55,21 +55,19 @@ class SimpleSwitchWebSocket13(simple_switch_13.SimpleSwitch13):
     def __init__(self, *args, **kwargs):
         super(SimpleSwitchWebSocket13, self).__init__(*args, **kwargs)
 
-        self.ws_send_queue = hub.Queue()
-        self.ws_lock = hub.BoundedSemaphore()
-
         wsgi = kwargs['wsgi']
         wsgi.register(
             SimpleSwitchWebSocketController,
             data={simple_switch_instance_name: self},
         )
+        self._ws_manager = wsgi.websocketmanager
 
     @set_ev_cls(ofp_event.EventOFPPacketIn)
     def _packet_in_handler(self, ev):
         super(SimpleSwitchWebSocket13, self)._packet_in_handler(ev)
 
         pkt = packet.Packet(ev.msg.data)
-        self.ws_send_queue.put(str(pkt))
+        self._ws_manager.broadcast(str(pkt))
 
     @rpc_public
     def get_arp_table(self):
@@ -82,24 +80,9 @@ class SimpleSwitchWebSocketController(ControllerBase):
             req, link, data, **config)
         self.simple_switch_app = data[simple_switch_instance_name]
 
+    @websocket('simpleswitch', url)
     def _websocket_handler(self, ws):
         simple_switch = self.simple_switch_app
         simple_switch.logger.debug('WebSocket connected: %s', ws)
         rpc_server = WebSocketRPCServer(ws, simple_switch)
-        hub.spawn(rpc_server.serve_forever)
-        while True:
-            data = simple_switch.ws_send_queue.get()
-            ws.send(unicode(json.dumps(data)))
-
-    @route('simpleswitch', url)
-    def websocket(self, req, **kwargs):
-        simple_switch = self.simple_switch_app
-        if simple_switch.ws_lock.acquire(blocking=False):
-            try:
-                self.websocket_handshake(req, self._websocket_handler)
-                return
-            finally:
-                simple_switch.logger.debug('WebSocket disconnected')
-                simple_switch.ws_lock.release()
-        else:
-            return Response(status=503)
+        rpc_server.serve_forever()
