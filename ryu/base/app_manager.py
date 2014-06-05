@@ -68,14 +68,14 @@ def unregister_app(app):
 def require_app(app_name):
     """
     Request the application to be loaded.
-
-    This is used for "api" style modules, which is imported by a client
-    application, to automatically load the corresponding server application.
     """
-    frm = inspect.stack()[2]  # skip a frame for "api" module
-    m = inspect.getmodule(frm[0])  # client module
-    m._REQUIRED_APP = getattr(m, '_REQUIRED_APP', [])
-    m._REQUIRED_APP.append(app_name)
+    for frame_record in inspect.stack():
+        frame = frame_record[0]
+        module = inspect.getmodule(frame)
+        module._REQUIRED_APP = getattr(module, '_REQUIRED_APP', [])
+        for name, member in inspect.getmembers(module):
+            if inspect.isclass(member) and issubclass(member, RyuApp):
+                    module._REQUIRED_APP.append(app_name)
 
 
 class RyuApp(object):
